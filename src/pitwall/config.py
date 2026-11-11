@@ -15,12 +15,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Postgres (admin)
+    # Postgres (admin: setup and migrations only)
     postgres_user: str = "pitwall_admin"
     postgres_password: SecretStr = SecretStr("change_me_admin")
     postgres_db: str = "pitwall"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
+
+    # Postgres (least-privilege roles; names must match migrations/002)
+    agent_user: str = "pitwall_agent"
+    agent_password: SecretStr = SecretStr("change_me_agent")
+    publisher_user: str = "pitwall_publisher"
+    publisher_password: SecretStr = SecretStr("change_me_publisher")
 
     # LLM providers (free tiers)
     google_api_key: SecretStr | None = None  # Gemini via Google AI Studio
@@ -38,15 +44,24 @@ class Settings(BaseSettings):
     langsmith_api_key: SecretStr | None = None
     langsmith_project: str = "pitwall"
 
-    def admin_conninfo(self) -> str:
+    def _conninfo(self, user: str, password: SecretStr) -> str:
         """libpq conninfo string; make_conninfo handles quoting of special characters."""
         return make_conninfo(
             host=self.postgres_host,
             port=self.postgres_port,
             dbname=self.postgres_db,
-            user=self.postgres_user,
-            password=self.postgres_password.get_secret_value(),
+            user=user,
+            password=password.get_secret_value(),
         )
+
+    def admin_conninfo(self) -> str:
+        return self._conninfo(self.postgres_user, self.postgres_password)
+
+    def agent_conninfo(self) -> str:
+        return self._conninfo(self.agent_user, self.agent_password)
+
+    def publisher_conninfo(self) -> str:
+        return self._conninfo(self.publisher_user, self.publisher_password)
 
 
 @lru_cache
